@@ -1,0 +1,93 @@
+apiVersion: eksctl.io/v1alpha5  # Defines the version of eksctl you're using to configure the EKS cluster.
+
+kind: ClusterConfig             # This YAML is a ClusterConfig kind, defining the configuration of an EKS cluster.
+
+metadata:  
+  name: jeet-cluster            # Name of the EKS cluster.
+  region: eu-west-1             # AWS region where the cluster is deployed.
+  version: "1.29"               # Kubernetes version for the cluster.
+
+KubernetesNetworkConfig:
+  IpFamily: ipv4                # Specifies the IP family (IPv4) for networking.
+
+vpc:
+  subnets:                      # Subnets where the cluster nodes will run.
+    private:
+      eu-west-1a:
+        id: subnet-0886574633a036227  # Private subnet in availability zone eu-west-1a.
+      eu-west-1b:
+        id: subnet-0edfc8af91613ed89  # Private subnet in availability zone eu-west-1b.
+
+secretsEncryption:
+  keyARN: arn:aws:kms:eu-west-1:864981755694:key/7af5ea8f-7292-4286-8b73-b1c8c8c8d82a
+  # KMS Key ARN used to encrypt Kubernetes secrets at rest. Secrets are encrypted using AWS Key Management Service (KMS) for additional security.
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["api","audit","authenticator","controllerManager","scheduler"]
+    # Enables different types of logging in CloudWatch for monitoring the cluster. Logs API server interactions, audit logs, authentications, etc.
+
+managedNodeGroups:
+  - privateNetworking: true
+    name: managed-Linux           # Managed node group for Linux worker nodes.
+    desiredCapacity:   1         # Desired number of Linux nodes.
+    minSize: 1                   # Minimum number of Linux nodes.
+    maxSize: 2                   # Maximum number of Linux nodes.
+    volumeSize: 60               # Storage volume size for each node.
+    volumeEncrypted: true        # Encrypts the EBS volumes attached to the nodes.
+    subnets:
+    - subnet-0886574633a036227       # Subnets assigned for the node group.
+    - subnet-0edfc8af91613ed89
+
+    iam:
+      withAddonPolicies:
+        autoScaler: true
+        externalDNS: true
+        certManager: true
+        appMesh: true
+        ebs: true
+
+    instanceTypes:             # Defines multiple instance types for flexibility in pricing and availability.
+      - t3.medium
+      - t3a.medium 
+
+    tags:                        # Tags are used for organizing and managing resources.
+      kubernetes.io/cluster/jeet-cluster: owned
+      environment: production
+
+    ssh:
+      allow: false               # Disables SSH access to the nodes for security.
+
+    labels:
+      role: linux-worker         # Labels for identifying the node's role in Kubernetes (Linux worker nodes).
+
+  - privateNetworking: true
+    name: managed-windows        # Managed node group for Windows worker nodes.
+    amiFamily: WindowsServer2019FullContainer  # Specifying AMI family to use for Windows node
+    desiredCapacity:   1         # Desired number of Window nodes.
+    minSize: 1                   # Minimum number of Window nodes.
+    maxSize: 2                   # Maximum number of Window nodes.
+    volumeSize: 60               # Storage volume size for each node.
+    volumeEncrypted: true        # Encrypts the EBS volumes attached to the nodes.
+    subnets:
+    - subnet-0886574633a036227       # Subnets assigned for the node group.
+    - subnet-0edfc8af91613ed89
+    iam:
+      instanceRoleARN: arn:aws:iam::864981755694:role/node-instance-role-window-core
+      # IAM roles assigned to the nodes
+
+    instanceTypes:
+      - t3a.medium
+      - t3.medium
+
+    taints:
+      - key: os
+        value: "windows"
+        effect: NoSchedule        # Taints ensure that Linux workloads aren't scheduled on Windows nodes.
+
+    labels:
+      role: window-worker         # Labels for identifying the node's role in Kubernetes (Windows worker nodes).
+
+    tags:
+      kubernetes.io/cluster/jeet-cluster: owned
+      environment: production
